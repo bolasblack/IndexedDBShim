@@ -6831,8 +6831,9 @@ module.exports = function() {};
   runtime = global.regeneratorRuntime = inModule ? module.exports : {};
 
   function wrap(innerFn, outerFn, self, tryLocsList) {
-    // If outerFn provided, then outerFn.prototype instanceof Generator.
-    var generator = Object.create((outerFn || Generator).prototype);
+    // If outerFn provided and outerFn.prototype is a Generator, then outerFn.prototype instanceof Generator.
+    var protoGenerator = outerFn && outerFn.prototype instanceof Generator ? outerFn : Generator;
+    var generator = Object.create(protoGenerator.prototype);
     var context = new Context(tryLocsList || []);
 
     // The ._invoke method unifies the implementations of the .next,
@@ -16153,18 +16154,15 @@ proto.slice = function(start, end) {
 
 var immediate = require('immediate');
 var argsarray = require('argsarray');
+var noop = require('noop-fn');
 
 var WebSQLDatabase = require('./websql/WebSQLDatabase');
 
-function customOpenDatabase(SQLiteDatabase, opts) {
-  opts = opts || {};
-  var sqliteOpts = opts.sqlite;
-  var webSQLOverrides = opts.websql || {};
-  var openDelay = webSQLOverrides.openDelay || immediate;
+function customOpenDatabase(SQLiteDatabase) {
 
   function createDb(dbName, dbVersion) {
-    var sqliteDatabase = new SQLiteDatabase(dbName, sqliteOpts);
-    return new WebSQLDatabase(dbVersion, sqliteDatabase, webSQLOverrides);
+    var sqliteDatabase = new SQLiteDatabase(dbName);
+    return new WebSQLDatabase(dbVersion, sqliteDatabase);
   }
 
   function openDatabase(args) {
@@ -16177,15 +16175,13 @@ function customOpenDatabase(SQLiteDatabase, opts) {
     var dbName = args[0];
     var dbVersion = args[1];
     // db description and size are ignored
-    var callback = args[4];
+    var callback = args[4] || noop;
 
     var db = createDb(dbName, dbVersion);
 
-    if (typeof callback === 'function') {
-      openDelay(function () {
-        callback(db);
-      });
-    }
+    immediate(function () {
+      callback(db);
+    });
 
     return db;
   }
@@ -16194,8 +16190,7 @@ function customOpenDatabase(SQLiteDatabase, opts) {
 }
 
 module.exports = customOpenDatabase;
-
-},{"./websql/WebSQLDatabase":377,"argsarray":1,"immediate":299}],374:[function(require,module,exports){
+},{"./websql/WebSQLDatabase":377,"argsarray":1,"immediate":299,"noop-fn":306}],374:[function(require,module,exports){
 'use strict';
 
 var SQLiteDatabase = require('./sqlite/SQLiteDatabase');
@@ -16211,18 +16206,8 @@ var SQLiteResult = require('./SQLiteResult');
 var READ_ONLY_ERROR = new Error(
   'could not prepare statement (23 not authorized)');
 
-function SQLiteDatabase(name, opts) {
-  opts = opts || {};
+function SQLiteDatabase(name) {
   this._db = new sqlite3.Database(name);
-  if (opts.busyTimeout) {
-    this._db.configure('busyTimeout', opts.busyTimeout); // Default is 1000
-  }
-  if (opts.trace) {
-    this._db.configure('trace', opts.trace);
-  }
-  if (opts.profile) {
-    this._db.configure('profile', opts.profile);
-  }
 }
 
 function runSelect(db, sql, args, cb) {
@@ -16301,7 +16286,6 @@ SQLiteDatabase.prototype.exec = function exec(queries, readOnly, callback) {
 };
 
 module.exports = SQLiteDatabase;
-
 },{"./SQLiteResult":376,"sqlite3":308}],376:[function(require,module,exports){
 'use strict';
 
@@ -16338,14 +16322,12 @@ function TransactionTask(readOnly, txnCallback, errorCallback, successCallback) 
   this.successCallback = successCallback;
 }
 
-function WebSQLDatabase(dbVersion, db, webSQLOverrides) {
+function WebSQLDatabase(dbVersion, db) {
   this.version = dbVersion;
   this._db = db;
   this._txnQueue = new Queue();
   this._running = false;
   this._currentTask = null;
-  this._transactionDelay = webSQLOverrides.transactionDelay || immediate;
-  this._executeDelay = webSQLOverrides.executeDelay;
 }
 
 WebSQLDatabase.prototype._onTransactionComplete = function(err) {
@@ -16373,9 +16355,9 @@ WebSQLDatabase.prototype._onTransactionComplete = function(err) {
 
 WebSQLDatabase.prototype._runTransaction = function () {
   var self = this;
-  var txn = new WebSQLTransaction(self, this._executeDelay);
+  var txn = new WebSQLTransaction(self);
 
-  this._transactionDelay(function () {
+  immediate(function () {
     self._currentTask.txnCallback(txn);
     txn._checkDone();
   });
@@ -16418,7 +16400,6 @@ WebSQLDatabase.prototype.readTransaction = function (txnCallback, errorCallback,
 };
 
 module.exports = WebSQLDatabase;
-
 },{"./WebSQLTransaction":379,"immediate":299,"noop-fn":306,"tiny-queue":371}],378:[function(require,module,exports){
 'use strict';
 
@@ -16520,9 +16501,13 @@ function runAllSql(self) {
   if (self._running || self._complete) {
     return;
   }
-  if (self._error || !self._sqlQueue.length) {
+  if (self._error) {
     self._complete = true;
     return self._websqlDatabase._onTransactionComplete(self._error);
+  }
+  if (!self._sqlQueue.length) {
+    self._complete = true;
+    return self._websqlDatabase._onTransactionComplete();
   }
   self._running = true;
   var batch = [];
@@ -16533,24 +16518,23 @@ function runAllSql(self) {
   runBatch(self, batch);
 }
 
-function executeSql(self, sql, args, sqlCallback, sqlErrorCallback, executeDelay) {
+function executeSql(self, sql, args, sqlCallback, sqlErrorCallback) {
   self._sqlQueue.push(new SQLTask(sql, args, sqlCallback, sqlErrorCallback));
   if (self._runningTimeout) {
     return;
   }
   self._runningTimeout = true;
-  executeDelay(function () {
+  immediate(function () {
     self._runningTimeout = false;
     runAllSql(self);
   });
 }
 
-function WebSQLTransaction(websqlDatabase, executeDelay) {
+function WebSQLTransaction(websqlDatabase) {
   this._websqlDatabase = websqlDatabase;
   this._error = null;
   this._complete = false;
   this._runningTimeout = false;
-  this._executeDelay = executeDelay || immediate;
   this._sqlQueue = new Queue();
   if (!websqlDatabase._currentTask.readOnly) {
     // Since we serialize all access to the database, there is no need to
@@ -16564,7 +16548,7 @@ WebSQLTransaction.prototype.executeSql = function (sql, args, sqlCallback, sqlEr
   sqlCallback = typeof sqlCallback === 'function' ? sqlCallback : noop;
   sqlErrorCallback = typeof sqlErrorCallback === 'function' ? sqlErrorCallback : errorUnhandled;
 
-  executeSql(this, sql, args, sqlCallback, sqlErrorCallback, this._executeDelay);
+  executeSql(this, sql, args, sqlCallback, sqlErrorCallback);
 };
 
 WebSQLTransaction.prototype._checkDone = function () {
@@ -16572,7 +16556,6 @@ WebSQLTransaction.prototype._checkDone = function () {
 };
 
 module.exports = WebSQLTransaction;
-
 },{"./WebSQLResultSet":378,"immediate":299,"noop-fn":306,"tiny-queue":371}],380:[function(require,module,exports){
 'use strict';
 

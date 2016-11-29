@@ -53,6 +53,17 @@ module.exports = function (grunt) {
                     'dist/<%= pkg.name%>.js': 'src/browser.js'
                 }
             },
+            browserNoninvasive: {
+                options: {
+                    transform: [['babelify', {sourceMaps: true}]],
+                    browserifyOptions: {
+                        standalone: 'dummyPlaceholder'
+                    }
+                },
+                files: {
+                    'dist/<%= pkg.name%>-noninvasive.js': 'src/browser-noninvasive.js'
+                }
+            },
             node: {
                 options: {
                     transform: [['babelify', {sourceMaps: true}]],
@@ -99,6 +110,16 @@ module.exports = function (grunt) {
                 },
                 src: 'dist/<%= pkg.name%>.js',
                 dest: 'dist/<%=pkg.name%>.min.js'
+            },
+            browserNoninvasive: {
+                options: {
+                    banner: '/*! <%= pkg.name %> - v<%= pkg.version %> - ' + '<%= grunt.template.today("yyyy-mm-dd") %> */\n',
+                    sourceMap: true,
+                    sourceMapName: 'dist/<%=pkg.name%>-noninvasive.min.js.map',
+                    sourceMapRoot: 'http://nparashuram.com/IndexedDBShim/dist/'
+                },
+                src: 'dist/<%= pkg.name%>-noninvasive.js',
+                dest: 'dist/<%=pkg.name%>-noninvasive.min.js'
             },
             node: {
                 options: {

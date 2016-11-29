@@ -1,4 +1,4 @@
-(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.dummyPlaceholder = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 (function (Buffer){
 (function (w) {
   "use strict";
@@ -13790,6 +13790,10 @@ exports.default = Sca;
 },{"./util.js":322,"atob":1,"w3c-blob":305}],319:[function(require,module,exports){
 'use strict';
 
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+
 var _setGlobalVars = require('./setGlobalVars.js');
 
 var _setGlobalVars2 = _interopRequireDefault(_setGlobalVars);
@@ -13802,7 +13806,16 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 _CFG2.default.win = typeof window !== 'undefined' ? window : self; // For Web Workers
 
-(0, _setGlobalVars2.default)();
+exports.default = function (IDB) {
+    var passInOpt = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+
+    if (typeof passInOpt.window !== 'undefined') {
+        _CFG2.default.win = passInOpt.window;
+    }
+    (0, _setGlobalVars2.default)(IDB);
+};
+
+module.exports = exports['default'];
 
 },{"./CFG.js":306,"./setGlobalVars.js":321}],320:[function(require,module,exports){
 'use strict';
@@ -14602,4 +14615,5 @@ exports.throwIfNotClonable = throwIfNotClonable;
 exports.defineReadonlyProperties = defineReadonlyProperties;
 exports.isValidKeyPath = isValidKeyPath;
 
-},{"./CFG.js":306,"./DOMException.js":307}]},{},[319]);
+},{"./CFG.js":306,"./DOMException.js":307}]},{},[319])(319)
+});
